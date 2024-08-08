@@ -1,46 +1,30 @@
-const express = require('express')
-const app = express()
-const path = require('path')
-const { logger } = require('./middleware/logger')
-const PORT = process.env.PORT || 3500
+import express, { json } from 'express';
+import { format } from 'date-fns';
+import { v4 as uuid } from 'uuid';
+import { existsSync } from 'fs';
+import { promises as fsPromises } from 'fs';
+import { join } from 'path';
 
-app.use(logger)
+const app = express();
+app.use(json());
 
-app.use(express.json())
+app.post('/api/log', async (req, res) => {
+    const { message } = req.body;
+    const dateTime = `${format(new Date(), 'yyyyMMdd\tHH:mm:ss')}`;
+    const logItem = `${dateTime}\t${uuid()}\t${message}\n`;
 
-app.use('/', express.static(path.join(__dirname, 'public')))
-
-app.use('/', require('./routes/root'))
-
-
-
-app.all('*', (req, res) => {
-    res.status(404)
-    if (req.accepts('html')) {
-        res.sendFile(path.join(__dirname, 'backend' ,'views', '404.html'))
+    try {
+        const logDir = join(__dirname, 'logs');
+        if (!existsSync(logDir)) {
+            await fsPromises.mkdir(logDir);
+        }
+        await fsPromises.appendFile(join(logDir, 'app.log'), logItem);
+        res.status(200).send('Log saved');
+    } catch (err) {
+        console.error('Failed to save log', err);
+        res.status(500).send('Failed to save log');
     }
-    else if (req.accepts('json')){
-        res.json({message: '404 Not Found'})
-    }
-    else {
-        res.type('txt').send('404 Not Found')
-    }
-        
-})
+});
 
-
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
